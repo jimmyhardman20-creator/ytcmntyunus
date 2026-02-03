@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YT Live Admin - Final Preview</title>
+    <title>YT Live Admin - Real-time Dashboard</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -12,6 +12,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Socket.io Client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -26,24 +28,53 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        const App = () => {
-            const [activeTab, setActiveTab] = useState('comments'); // 'comments', 'jobs', 'workers'
-            const [comments, setComments] = useState([
-                { id: '1', userName: 'Rahat', text: 'Great stream!', timestamp: new Date() },
-                { id: '2', userName: 'Sabbir', text: 'My bkash: 01700000000', timestamp: new Date() },
-                { id: '3', userName: 'Anik', text: 'How are you?', timestamp: new Date() }
-            ]);
-            const [jobs, setJobs] = useState([
-                { id: 'j1', url: 'https://youtube.com/live/demo1', status: 'pending' }
-            ]);
-            const [workers, setWorkers] = useState([
-                { id: 'w1', name: 'Worker_Alpha', status: 'online' },
-                { id: 'w2', name: 'Chrome_Ext_01', status: 'online' }
-            ]);
-            const [newJobUrl, setNewJobUrl] = useState('');
-            const [isConnected, setIsConnected] = useState(true);
+        // Render URL auto-detection (Backend connection)
+        const SERVER_URL = window.location.hostname === 'localhost' 
+          ? 'http://localhost:3001' 
+          : window.location.origin;
 
-            // Filtering Logic
+        const socket = io(SERVER_URL);
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('comments'); 
+            const [comments, setComments] = useState([]); // Faka array, real data ashbe server theke
+            const [jobs, setJobs] = useState([]);         // Faka array
+            const [workers, setWorkers] = useState([]);   // Faka array
+            const [newJobUrl, setNewJobUrl] = useState('');
+            const [isConnected, setIsConnected] = useState(socket.connected);
+
+            useEffect(() => {
+                socket.on('connect', () => setIsConnected(true));
+                socket.on('disconnect', () => setIsConnected(false));
+
+                // Real-time Listeners for actual data
+                socket.on('new_comment', (comment) => {
+                    setComments(prev => [comment, ...prev]);
+                });
+
+                socket.on('new_job', (job) => {
+                    setJobs(prev => [job, ...prev]);
+                });
+
+                socket.on('worker_update', (workerList) => {
+                    setWorkers(workerList);
+                });
+
+                socket.on('clear_comments', () => {
+                    setComments([]);
+                });
+
+                return () => {
+                    socket.off('connect');
+                    socket.off('disconnect');
+                    socket.off('new_comment');
+                    socket.off('new_job');
+                    socket.off('worker_update');
+                    socket.off('clear_comments');
+                };
+            }, []);
+
+            // Filter logic for actual comments
             const filteredData = useMemo(() => {
                 const uniqueUsers = new Set();
                 const general = [];
@@ -62,18 +93,27 @@
                 return { general: general.reverse(), numbered: numbered.reverse() };
             }, [comments]);
 
-            const addJob = (e) => {
+            const addJob = async (e) => {
                 e.preventDefault();
                 if (!newJobUrl) return;
-                const newJob = { id: Date.now().toString(), url: newJobUrl, status: 'pending' };
-                setJobs([newJob, ...jobs]);
-                setNewJobUrl('');
+                try {
+                    await fetch(`${SERVER_URL}/api/jobs`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: newJobUrl })
+                    });
+                    setNewJobUrl('');
+                } catch (err) { console.error("Job post error:", err); }
             };
 
-            // Re-initialize icons on tab change
+            const clearData = async () => {
+                if (!window.confirm("Apni ki nishchit bhabe sob data muche felte chan?")) return;
+                await fetch(`${SERVER_URL}/api/comments`, { method: 'DELETE' });
+            };
+
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
-            }, [activeTab]);
+            }, [activeTab, comments, workers, jobs]);
 
             return (
                 <div className="min-h-screen pb-20">
@@ -101,7 +141,7 @@
                             </button>
                         </div>
 
-                        <button onClick={() => setComments([])} className="p-2.5 text-slate-400 hover:text-red-500 transition-all">
+                        <button onClick={clearData} className="p-2.5 text-slate-400 hover:text-red-500 transition-all">
                             <i data-lucide="trash-2" className="w-5 h-5"></i>
                         </button>
                     </nav>
@@ -120,18 +160,18 @@
                     </div>
 
                     <main className="max-w-7xl mx-auto p-4 md:p-8">
-                        {/* VIEW 1: COMMENTS */}
                         {activeTab === 'comments' && (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <h2 className="flex items-center justify-between font-black text-xl text-slate-800">
                                         <span>Unique Users</span>
-                                        <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs">{filteredData.general.length}</span>
+                                        <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black">{filteredData.general.length}</span>
                                     </h2>
                                     <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                                        {filteredData.general.length === 0 && <div className="bg-white p-20 text-center text-slate-400 border-2 border-dashed rounded-3xl italic">Kono unique comment asheni.</div>}
                                         {filteredData.general.map(c => (
                                             <div key={c.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex gap-4">
-                                                <div className="bg-blue-50 h-12 w-12 rounded-2xl flex items-center justify-center text-blue-600 font-black uppercase">{c.userName[0]}</div>
+                                                <div className="bg-blue-50 h-12 w-12 rounded-2xl flex items-center justify-center text-blue-600 font-black uppercase">{c.userName?.[0]}</div>
                                                 <div className="flex-1">
                                                     <h4 className="font-bold text-slate-900">{c.userName}</h4>
                                                     <p className="text-slate-600 text-sm mt-1">{c.text}</p>
@@ -143,9 +183,10 @@
                                 <div className="space-y-4">
                                     <h2 className="flex items-center justify-between font-black text-xl text-slate-800">
                                         <span>Priority (Numbers)</span>
-                                        <span className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs">{filteredData.numbered.length}</span>
+                                        <span className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-black">{filteredData.numbered.length}</span>
                                     </h2>
                                     <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                                        {filteredData.numbered.length === 0 && <div className="bg-white p-20 text-center text-slate-400 border-2 border-dashed rounded-3xl italic">Number thaka kono comment nei.</div>}
                                         {filteredData.numbered.map(c => (
                                             <div key={c.id} className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex gap-4">
                                                 <div className="bg-emerald-200/50 h-12 w-12 rounded-2xl flex items-center justify-center text-emerald-700 flex-shrink-0"><i data-lucide="hash"></i></div>
@@ -160,18 +201,18 @@
                             </div>
                         )}
 
-                        {/* VIEW 2: JOBS */}
                         {activeTab === 'jobs' && (
                             <div className="max-w-2xl mx-auto space-y-8">
                                 <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-                                    <h3 className="text-2xl font-black text-slate-800 mb-6">Push New Scrape Job</h3>
+                                    <h3 className="text-2xl font-black text-slate-800 mb-6 text-center">Push New Scrape Job</h3>
                                     <form onSubmit={addJob} className="flex flex-col gap-4">
-                                        <input type="url" value={newJobUrl} onChange={e => setNewJobUrl(e.target.value)} placeholder="https://www.youtube.com/live/..." className="w-full px-6 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10" required />
+                                        <input type="url" value={newJobUrl} onChange={e => setNewJobUrl(e.target.value)} placeholder="YouTube Live URL link eikhane din..." className="w-full px-6 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10" required />
                                         <button className="bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 active:scale-95 transition-all">Add to Queue</button>
                                     </form>
                                 </div>
                                 <div className="space-y-3">
                                     <h3 className="font-bold text-slate-700 px-2">Pending Jobs</h3>
+                                    {jobs.length === 0 && <div className="p-10 text-center text-slate-400 border rounded-2xl italic bg-white">Queue-te kono job nei.</div>}
                                     {jobs.map(j => (
                                         <div key={j.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between">
                                             <div className="flex items-center gap-4 truncate">
@@ -185,13 +226,17 @@
                             </div>
                         )}
 
-                        {/* VIEW 3: WORKERS */}
                         {activeTab === 'workers' && (
                             <div className="max-w-4xl mx-auto space-y-6">
                                 <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden">
                                     <h3 className="text-2xl font-black mb-1 flex items-center gap-3"><i data-lucide="activity" className="text-blue-400"></i> Active Scrapers</h3>
-                                    <p className="text-slate-400 text-sm mb-8 italic font-medium">Extension theke connect kora worker status eikhane dekhaben.</p>
+                                    <p className="text-slate-400 text-sm mb-8 italic font-medium">Extension connect hole auto eikhane status dekhaben.</p>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {workers.length === 0 && (
+                                          <div className="col-span-full py-20 text-center text-slate-500 border border-dashed border-slate-700 rounded-3xl italic bg-slate-800/50">
+                                            Kono active worker ekhono connect hoyni.
+                                          </div>
+                                        )}
                                         {workers.map(w => (
                                             <div key={w.id} className="bg-slate-800 p-5 rounded-2xl border border-slate-700 flex items-center justify-between group">
                                                 <div className="flex items-center gap-4">
@@ -200,8 +245,8 @@
                                                         <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-[3px] border-slate-800 animate-pulse"></div>
                                                     </div>
                                                     <div>
-                                                        <p className="font-black text-white">{w.name}</p>
-                                                        <p className="text-[10px] text-slate-500 font-mono tracking-tighter">ID: {w.id}</p>
+                                                        <p className="font-black text-white">{w.name || 'Worker'}</p>
+                                                        <p className="text-[10px] text-slate-500 font-mono tracking-tighter">ID: {w.id.slice(0, 15)}</p>
                                                     </div>
                                                 </div>
                                                 <span className="text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 px-3 py-1 rounded-lg">Online</span>
@@ -215,11 +260,13 @@
 
                     {/* Network Badge */}
                     <div className="fixed bottom-24 right-6 md:bottom-8 md:right-8 bg-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-100 flex items-center gap-4 z-30">
-                        <div className="flex flex-col">
-                            <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-none mb-1">Network</span>
-                            <span className={`text-xs font-black ${isConnected ? 'text-green-600' : 'text-red-500'}`}>SERVER ONLINE</span>
+                        <div className="flex flex-col text-right">
+                            <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-none mb-1">Server Status</span>
+                            <span className={`text-xs font-black ${isConnected ? 'text-green-600' : 'text-red-500'}`}>
+                              {isConnected ? 'ONLINE' : 'OFFLINE'}
+                            </span>
                         </div>
-                        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}></div>
                     </div>
                 </div>
             );
@@ -227,7 +274,10 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        setTimeout(() => lucide.createIcons(), 500);
+        // Refresh icons periodically to handle dynamic content
+        setInterval(() => {
+          if (window.lucide) window.lucide.createIcons();
+        }, 1000);
     </script>
 </body>
 </html>
