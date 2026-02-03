@@ -1,4 +1,4 @@
-// Express Server with Socket.io for Real-time Memory Storage
+// Express Server with Socket.io for Real-time Memory Storage & Worker Tracking
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -20,29 +20,49 @@ const io = new Server(server, {
 // In-memory data structures
 let comments = [];
 let jobs = [];
+let activeWorkers = new Map(); // Sockets tracking for workers
 
-// --- API Endpoints for Extension ---
+io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
+
+    // Initial worker identification
+    socket.on('register_worker', (data) => {
+        activeWorkers.set(socket.id, {
+            id: socket.id,
+            name: data.name || 'Anonymous Worker',
+            status: 'online',
+            lastActive: new Date()
+        });
+        io.emit('worker_update', Array.from(activeWorkers.values()));
+    });
+
+    socket.on('disconnect', () => {
+        if (activeWorkers.has(socket.id)) {
+            activeWorkers.delete(socket.id);
+            io.emit('worker_update', Array.from(activeWorkers.values()));
+        }
+        console.log('User disconnected:', socket.id);
+    });
+});
+
+// --- API Endpoints ---
 
 // Extension can post comments here
 app.post('/api/comments', (req, res) => {
-    const { userName, text } = req.body;
+    const { userName, text, workerId } = req.body;
     if (!userName || !text) return res.status(400).send("Missing data");
 
     const newComment = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
         userName,
         text,
+        workerId: workerId || 'Unknown',
         timestamp: new Date()
     };
     
     comments.push(newComment);
-    io.emit('new_comment', newComment); // Notify dashboard
+    io.emit('new_comment', newComment); 
     res.status(201).json(newComment);
-});
-
-// Extension checks for jobs here
-app.get('/api/jobs', (req, res) => {
-    res.json(jobs.filter(j => j.status === 'pending'));
 });
 
 // Dashboard adds a new job
@@ -56,14 +76,16 @@ app.post('/api/jobs', (req, res) => {
     res.status(201).json(newJob);
 });
 
-// Dashboard clears data
+app.get('/api/jobs', (req, res) => {
+    res.json(jobs.filter(j => j.status === 'pending'));
+});
+
 app.delete('/api/comments', (req, res) => {
     comments = [];
     io.emit('clear_comments');
     res.send("Cleared successfully");
 });
 
-// Fallback to index.html for React routing
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
