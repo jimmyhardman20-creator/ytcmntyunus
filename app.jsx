@@ -12,7 +12,9 @@ import {
   Wifi,
   WifiOff,
   Users,
-  Activity
+  Activity,
+  CheckCircle2,
+  RefreshCcw
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 
@@ -24,7 +26,7 @@ const SERVER_URL = window.location.hostname === 'localhost'
 const socket = io(SERVER_URL);
 
 const App = () => {
-  const [view, setView] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('comments'); // 'comments', 'jobs', 'workers'
   const [comments, setComments] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -36,7 +38,7 @@ const App = () => {
     socket.on('connect', () => setIsConnected(true));
     socket.on('disconnect', () => setIsConnected(false));
 
-    // Real-time data sync listeners
+    // Real-time Listeners
     socket.on('new_comment', (comment) => {
       setComments(prev => [comment, ...prev]);
     });
@@ -63,7 +65,7 @@ const App = () => {
     };
   }, []);
 
-  // Filter logic
+  // Filter logic: Unique user check ebong Numbers detection
   const filteredData = useMemo(() => {
     const uniqueUsers = new Set();
     const general = [];
@@ -98,178 +100,238 @@ const App = () => {
   };
 
   const clearData = async () => {
-    if (!window.confirm("Sob data muche felte chan?")) return;
+    if (!window.confirm("Apni ki nishchit bhabe sob data muche felte chan?")) return;
     await fetch(`${SERVER_URL}/api/comments`, { method: 'DELETE' });
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Top Header */}
-      <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans pb-20">
+      {/* --- Top Navbar --- */}
+      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="bg-red-600 p-2 rounded-xl text-white shadow-lg">
-            <Youtube size={24} />
+          <div className="bg-red-600 p-2.5 rounded-2xl text-white shadow-lg shadow-red-200">
+            <Youtube size={26} />
           </div>
-          <h1 className="text-xl font-extrabold hidden md:block">YT Stream Admin</h1>
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-slate-800 leading-none">YT Admin</h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Real-time Stream Controller</p>
+          </div>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-full border">
-          <button onClick={() => setView('dashboard')} className={`px-5 py-1.5 rounded-full text-sm font-bold transition-all ${view === 'dashboard' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500'}`}>Dashboard</button>
-          <button onClick={() => setView('jobs')} className={`px-5 py-1.5 rounded-full text-sm font-bold transition-all ${view === 'jobs' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500'}`}>Jobs & Workers</button>
+        <div className="hidden md:flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+          <button 
+            onClick={() => setActiveTab('comments')} 
+            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'comments' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <MessageSquare size={16} /> Live Comments
+          </button>
+          <button 
+            onClick={() => setActiveTab('jobs')} 
+            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'jobs' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Clock size={16} /> Job Queue
+          </button>
+          <button 
+            onClick={() => setActiveTab('workers')} 
+            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'workers' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Users size={16} /> Active Workers
+          </button>
         </div>
 
-        <button onClick={clearData} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-          <Trash2 size={20} />
+        <button 
+          onClick={clearData} 
+          className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+          title="Clear Dashboard"
+        >
+          <Trash2 size={22} />
         </button>
       </nav>
 
-      <main className="max-w-7xl mx-auto p-4 md:p-6">
-        {view === 'dashboard' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Unique Comments */}
+      {/* --- Mobile Navigation --- */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+        <button onClick={() => setActiveTab('comments')} className={`flex flex-col items-center gap-1 ${activeTab === 'comments' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <MessageSquare size={20} /> <span className="text-[10px] font-bold">Comments</span>
+        </button>
+        <button onClick={() => setActiveTab('jobs')} className={`flex flex-col items-center gap-1 ${activeTab === 'jobs' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <Clock size={20} /> <span className="text-[10px] font-bold">Jobs</span>
+        </button>
+        <button onClick={() => setActiveTab('workers')} className={`flex flex-col items-center gap-1 ${activeTab === 'workers' ? 'text-blue-600' : 'text-slate-400'}`}>
+          <Users size={20} /> <span className="text-[10px] font-bold">Workers</span>
+        </button>
+      </div>
+
+      <main className="max-w-7xl mx-auto p-4 md:p-8">
+        
+        {/* VIEW 1: COMMENTS DASHBOARD */}
+        {activeTab === 'comments' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
             <div className="space-y-4">
-              <h2 className="flex items-center justify-between font-bold text-lg text-slate-700">
-                <span className="flex items-center gap-2"><MessageSquare className="text-blue-500" /> Unique List</span>
-                <span className="bg-blue-100 text-blue-700 px-3 py-0.5 rounded-full text-xs font-black">{filteredData.general.length}</span>
+              <h2 className="flex items-center justify-between font-extrabold text-xl text-slate-800">
+                <span className="flex items-center gap-2 underline decoration-blue-500/30">Unique Users</span>
+                <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black shadow-md">{filteredData.general.length}</span>
               </h2>
-              <div className="space-y-3 max-h-[75vh] overflow-y-auto pr-2 custom-scrollbar">
-                {filteredData.general.length === 0 && (
-                  <div className="bg-white p-12 text-center text-slate-400 border-2 border-dashed rounded-3xl italic">Kono unique comment ekhono asheni.</div>
-                )}
+              <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-3">
+                {filteredData.general.length === 0 && <div className="bg-white p-20 text-center text-slate-400 border-2 border-dashed rounded-[2rem] italic">Kono unique comment asheni.</div>}
                 {filteredData.general.map(c => (
-                  <div key={c.id} className="bg-white p-4 rounded-2xl border shadow-sm flex gap-4 hover:border-blue-200 transition-all group">
-                    <div className="bg-blue-50 h-10 w-10 rounded-full flex items-center justify-center text-blue-600 font-bold group-hover:bg-blue-100">
+                  <div key={c.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex gap-4 hover:border-blue-400 transition-all group">
+                    <div className="bg-blue-50 h-12 w-12 rounded-2xl flex items-center justify-center text-blue-600 font-black text-lg group-hover:scale-110 transition-transform">
                       {c.userName?.[0]?.toUpperCase()}
                     </div>
-                    <div className="overflow-hidden">
-                      <h4 className="font-bold text-sm text-slate-900 truncate">{c.userName}</h4>
-                      <p className="text-slate-600 text-sm mt-0.5 break-words">{c.text}</p>
+                    <div className="overflow-hidden flex-1">
+                      <h4 className="font-bold text-slate-900 truncate">{c.userName}</h4>
+                      <p className="text-slate-600 text-sm mt-1 leading-relaxed">{c.text}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Number Priority */}
             <div className="space-y-4">
-              <h2 className="flex items-center justify-between font-bold text-lg text-slate-700">
-                <span className="flex items-center gap-2"><Hash className="text-emerald-500" /> Priority (Numbers)</span>
-                <span className="bg-emerald-100 text-emerald-700 px-3 py-0.5 rounded-full text-xs font-black">{filteredData.numbered.length}</span>
+              <h2 className="flex items-center justify-between font-extrabold text-xl text-slate-800">
+                <span className="flex items-center gap-2 underline decoration-emerald-500/30">Priority Numbers</span>
+                <span className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-black shadow-md">{filteredData.numbered.length}</span>
               </h2>
-              <div className="space-y-3 max-h-[75vh] overflow-y-auto pr-2">
-                {filteredData.numbered.length === 0 && (
-                  <div className="bg-white p-12 text-center text-slate-400 border-2 border-dashed rounded-3xl italic">Numbers thaka kono comment asheni.</div>
-                )}
+              <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-3">
+                {filteredData.numbered.length === 0 && <div className="bg-white p-20 text-center text-slate-400 border-2 border-dashed rounded-[2rem] italic">Number thaka kono comment nei.</div>}
                 {filteredData.numbered.map(c => (
-                  <div key={c.id} className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 shadow-sm flex gap-4">
-                    <div className="bg-emerald-100 h-10 w-10 rounded-full flex items-center justify-center text-emerald-600 flex-shrink-0">
-                      <Hash size={18} />
+                  <div key={c.id} className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm flex gap-4">
+                    <div className="bg-emerald-200/50 h-12 w-12 rounded-2xl flex items-center justify-center text-emerald-700 flex-shrink-0">
+                      <Hash size={24} />
                     </div>
                     <div className="flex-1 overflow-hidden">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-sm text-emerald-900 truncate">{c.userName}</h4>
-                        <span className="text-[10px] font-mono text-emerald-500 bg-white px-1.5 py-0.5 rounded border border-emerald-100">
-                          {c.timestamp?.toLocaleTimeString ? c.timestamp.toLocaleTimeString() : 'Recent'}
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="font-bold text-emerald-900 truncate">{c.userName}</h4>
+                        <span className="text-[10px] font-mono text-emerald-600 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                          {new Date(c.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                       </div>
-                      <p className="text-emerald-800 text-sm mt-2 bg-white/80 p-3 rounded-xl font-medium border border-emerald-100/50">{c.text}</p>
+                      <p className="text-emerald-800 text-sm font-semibold bg-white/70 p-3 rounded-xl border border-emerald-100/50">{c.text}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        ) : (
-          /* Job & Worker Management */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {/* Left: Job Creator */}
-            <div className="space-y-6">
-              <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <PlusCircle className="text-blue-500" /> Scrape Job Create
-                </h3>
-                <form onSubmit={addJob} className="flex flex-col gap-3">
+        )}
+
+        {/* VIEW 2: JOB QUEUE */}
+        {activeTab === 'jobs' && (
+          <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100">
+              <h3 className="text-2xl font-black text-slate-800 mb-2">Push New Scrape Job</h3>
+              <p className="text-slate-500 text-sm mb-8">YouTube Live URL-ti add korun, online worker-ra auto scrape shuru korbe.</p>
+              <form onSubmit={addJob} className="flex flex-col gap-4">
+                <div className="relative">
+                  <Youtube className="absolute left-5 top-4 text-slate-400" size={20} />
                   <input 
                     type="url" 
                     value={newJobUrl}
                     onChange={e => setNewJobUrl(e.target.value)}
-                    placeholder="Paste YouTube Live URL..."
-                    className="px-5 py-3 rounded-xl border outline-none focus:ring-4 focus:ring-blue-500/10"
+                    placeholder="https://www.youtube.com/live/..."
+                    className="w-full pl-14 pr-6 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-medium"
                     required
                   />
-                  <button disabled={loading} className="bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
-                    {loading ? 'Processing...' : 'Add to Scrape Queue'}
-                  </button>
-                </form>
-              </div>
+                </div>
+                <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all">
+                  {loading ? 'Processing...' : 'Add to Scrape Queue'}
+                </button>
+              </form>
+            </div>
 
-              <div className="space-y-4">
-                <h3 className="font-bold text-slate-700 flex items-center gap-2"><Clock size={18}/> Pending Queue</h3>
-                <div className="space-y-3">
-                  {jobs.length === 0 && <p className="text-center p-6 bg-white rounded-2xl text-slate-400 border border-dashed">No pending jobs.</p>}
-                  {jobs.map(j => (
-                    <div key={j.id} className="bg-white p-4 rounded-2xl border flex items-center justify-between shadow-sm">
-                      <div className="flex items-center gap-4 overflow-hidden">
-                        <div className="bg-amber-100 p-2.5 rounded-lg text-amber-600"><Youtube size={18}/></div>
-                        <p className="text-xs font-bold truncate max-w-[150px]">{j.url}</p>
+            <div className="space-y-4">
+              <h3 className="font-black text-slate-700 flex items-center gap-2 px-2"><RefreshCcw size={18} className="text-slate-400" /> Pending Jobs</h3>
+              <div className="grid gap-3">
+                {jobs.length === 0 && <div className="p-12 text-center text-slate-400 border-2 border-dashed rounded-3xl">Queue ekhon faka.</div>}
+                {jobs.map(j => (
+                  <div key={j.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm group hover:shadow-md transition-all">
+                    <div className="flex items-center gap-4 overflow-hidden">
+                      <div className="bg-amber-100 p-3 rounded-xl text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                        <Play size={18}/>
                       </div>
-                      <span className="text-[9px] font-black uppercase bg-amber-50 px-2.5 py-1 rounded-full text-amber-600 border border-amber-100">{j.status}</span>
+                      <p className="text-sm font-bold text-slate-700 truncate max-w-[300px]">{j.url}</p>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-tighter bg-amber-50 px-3 py-1.5 rounded-full text-amber-600 border border-amber-100">
+                      {j.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 3: ACTIVE WORKERS */}
+        {activeTab === 'workers' && (
+          <div className="max-w-4xl mx-auto space-y-6 animate-in zoom-in-95 duration-300">
+            <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-10 opacity-10">
+                <Users size={150} />
+              </div>
+              <div className="relative z-10">
+                <h3 className="text-2xl font-black mb-1 flex items-center gap-3">
+                  <Activity className="text-blue-400" /> Active Scrapers
+                </h3>
+                <p className="text-slate-400 text-sm mb-8 font-medium italic">Chrome extension theke connect kora worker-der eikhane dekhaben.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {workers.length === 0 && (
+                    <div className="col-span-full py-16 text-center text-slate-500 italic border border-dashed border-slate-700 rounded-3xl bg-slate-800/50">
+                      Kono worker ekhono connect hoyni.
+                    </div>
+                  )}
+                  {workers.map(w => (
+                    <div key={w.id} className="bg-slate-800/80 backdrop-blur p-5 rounded-2xl border border-slate-700 flex items-center justify-between group hover:border-blue-500 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className="bg-blue-600/20 p-3 rounded-xl text-blue-400">
+                            <UserRound size={24} />
+                          </div>
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-[3px] border-slate-800 animate-pulse"></div>
+                        </div>
+                        <div>
+                          <p className="font-black text-white">{w.name}</p>
+                          <p className="text-[10px] text-slate-500 font-mono tracking-tighter">SID: {w.id.slice(0, 15)}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 px-3 py-1 rounded-lg">Online</span>
+                        <div className="flex gap-1 mt-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50"></div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500/20"></div>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Right: Active Workers List */}
-            <div className="space-y-6">
-              <div className="bg-slate-900 p-8 rounded-3xl shadow-xl text-white border border-slate-800">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Users className="text-blue-400" /> Active Workers
-                </h3>
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                  {workers.length === 0 && (
-                    <div className="py-10 text-center text-slate-500 italic border border-dashed border-slate-700 rounded-2xl">
-                      Kono worker ekhono connect hoyni.
-                    </div>
-                  )}
-                  {workers.map(w => (
-                    <div key={w.id} className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex items-center justify-between group">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="bg-blue-900/50 p-2.5 rounded-xl text-blue-400">
-                            <Activity size={20} />
-                          </div>
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-800"></div>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">{w.name}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">ID: {w.id.slice(0, 10)}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-green-400 bg-green-400/10 px-2 py-1 rounded-lg">Online</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-blue-500/20 flex items-center justify-between">
+              <div>
+                <h4 className="text-xl font-black flex items-center gap-2 uppercase tracking-tighter">
+                  <CheckCircle2 /> System Status
+                </h4>
+                <p className="text-blue-100 text-sm font-medium mt-1">Worker connections are stable and monitoring the queue.</p>
               </div>
-
-              <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                <p className="text-xs text-blue-700 leading-relaxed italic">
-                  <b>Worker Tip:</b> Extension connect hole auto eikhane status update hobe. Worker proti second-e queue theke job check korbe.
-                </p>
+              <div className="bg-white/20 px-6 py-3 rounded-2xl text-2xl font-black">
+                {workers.length}
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* Connectivity Status */}
-      <div className="fixed bottom-6 left-6 bg-slate-900 text-white px-5 py-2.5 rounded-full flex items-center gap-3 shadow-2xl border border-slate-700">
-        <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-        <span className="text-[10px] font-bold uppercase tracking-widest">
-          {isConnected ? 'Main Server Online' : 'Server Offline'}
-        </span>
+      {/* --- Global Status Indicator --- */}
+      <div className="fixed bottom-24 right-6 md:bottom-8 md:right-8 bg-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-100 flex items-center gap-4 z-30">
+        <div className="flex flex-col">
+          <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-none mb-1">Network</span>
+          <span className={`text-xs font-black ${isConnected ? 'text-green-600' : 'text-red-500'}`}>
+            {isConnected ? 'SERVER ONLINE' : 'CONNECTION LOST'}
+          </span>
+        </div>
+        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`}></div>
       </div>
     </div>
   );
